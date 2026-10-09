@@ -926,8 +926,18 @@ class DownloadManager {
     child.stderr.on('data', onChunk(true));
 
     child.on('error', (err) => {
+      // A spawn failure (missing binary, AV block, exhausted handles) fires
+      // 'error' WITHOUT a following 'close' — so this is a terminal path of
+      // its own: mark the task failed, tell the renderer, log the reason and
+      // pump the queue. Without it the card would sit on "Starting" forever.
+      this.active.delete(task.id);
+      task.child = null;
       task.status = 'error';
       task.error = `yt-dlp process error: ${err.message}`;
+      task.finishedAt = Date.now();
+      logger.warn(`yt-dlp failed to start: ${err.message}`);
+      this.#emit(task);
+      this.#pump();
     });
 
     child.on('close', async (code, signal) => {

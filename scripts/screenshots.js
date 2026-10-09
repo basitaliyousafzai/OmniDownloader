@@ -288,7 +288,10 @@ async function startAndWatch(ws, downloadsDir, { url, playlist, midTimeoutMs }) 
       await settle(ws);
     }
 
-    if (!await pickQuality(ws, '360p')) throw new Error('360p quality not offered');
+    // 720p keeps the mid-flight window wide (bigger file); 360p as fallback.
+    if (!await pickQuality(ws, '720p') && !await pickQuality(ws, '360p')) {
+      throw new Error('no usable quality offered');
+    }
     await click(ws, '#startDownloadBtn');
 
     // 1) the task card must appear (a start click that did not take lands here)
@@ -333,7 +336,16 @@ async function main() {
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(
     { destination: downloads, concurrency: 2, engineVersion: null, lastUpdateCheck: 0 }, null, 2));
 
-  const child = spawn(ELECTRON, [ROOT, `--remote-debugging-port=${PORT}`], { stdio: 'ignore' });
+  // Background/occluded renderers get requestAnimationFrame throttled to a
+  // halt (the task list coalesces DOM flushes per frame) — without these the
+  // card text freezes at "Starting" while the download quietly completes.
+  const child = spawn(ELECTRON, [
+    ROOT,
+    `--remote-debugging-port=${PORT}`,
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding'
+  ], { stdio: 'ignore' });
   let ws = null;
   try {
     let target = null;
