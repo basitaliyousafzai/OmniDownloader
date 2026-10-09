@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# test-run artifacts (npm run uitest)
+scripts/shots/
+
+# logs
+*.log
+
+# partial / temp files from interrupted downloads
+*.part
+*.ytdl
+*.replace-tmp
+
+# OS noise
+Thumbs.db
+.DS_Store

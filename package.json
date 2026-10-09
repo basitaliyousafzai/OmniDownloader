@@ -1,0 +1,68 @@
+{
+  "name": "omnidownloader",
+  "productName": "OmniDownloader",
+  "version": "1.0.0",
+  "description": "Production-ready desktop video & audio downloader built with Electron and pure vanilla HTML/CSS/JS, driven by local yt-dlp + FFmpeg.",
+  "author": "basitaliyousafzai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/basitaliyousafzai/OmniDownloader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/basitaliyousafzai/OmniDownloader/issues"
+  },
+  "homepage": "https://github.com/basitaliyousafzai/OmniDownloader#readme",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron scripts/smoke.js",
+    "uitest": "electron scripts/ui-test.js",
+    "shots": "electron scripts/screenshots.js",
+    "icon": "node scripts/make-icon.js",
+    "dist": "electron-builder --win nsis",
+    "dist:dir": "electron-builder --win dir"
+  },
+  "build": {
+    "appId": "com.omnidownloader.desktop",
+    "productName": "OmniDownloader",
+    "copyright": "© 2026 OmniDownloader",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OmniDownloader",
+      "uninstallDisplayName": "OmniDownloader",
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": false
+    },
+    "artifactName": "OmniDownloader-Setup-${version}.${ext}"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}

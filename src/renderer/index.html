@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!--
+    Content Security Policy — the UI is 100% local:
+      • scripts/styles only from this folder (no CDN, no eval)
+      • images may come from https: (remote video thumbnails)
+      • no network connections are allowed from the page itself (all I/O
+        happens through the preload bridge → main process)
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'none'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <title>OmniDownloader</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ============================ TOP BAR ============================ -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12" /><path d="m7 11 5 5 5-5" /><path d="M4 21h16" />
+          </svg>
+        </span>
+        <h1>Omni<span>Downloader</span></h1>
+        <span class="version-chip" id="versionChip">v1.0.0</span>
+      </div>
+
+      <div class="topbar-actions">
+        <!-- Engine (yt-dlp / FFmpeg) health pill -->
+        <div class="engine-pill" id="enginePill" title="Download engine status">
+          <span class="dot" id="engineDot"></span>
+          <span id="engineText">Starting…</span>
+        </div>
+
+        <button class="btn btn-ghost btn-sm hidden" id="engineUpdateBtn" type="button">
+          Update engine
+        </button>
+
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Open settings" title="Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- ========================== URL INPUT ========================== -->
+      <section class="urlbar" aria-label="Link analyzer">
+        <div class="urlbar-row">
+          <div class="input-shell">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+                <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+              </svg>
+            </span>
+            <input id="urlInput" type="text" inputmode="url" autocomplete="off"
+                   spellcheck="false" placeholder="Paste a video or audio link…"
+                   aria-label="Media URL" />
+            <button class="btn btn-ghost btn-sm" id="pasteBtn" type="button" title="Paste from clipboard">
+              Paste
+            </button>
+          </div>
+          <button class="btn btn-primary" id="analyzeBtn" type="button">
+            <span class="btn-label">Analyze</span>
+            <span class="spinner hidden" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <div class="urlbar-meta">
+          <p class="hint">YouTube · Shorts · TikTok · Facebook · Instagram · X · Vimeo · Reddit · +1000 sites</p>
+          <p class="inline-error hidden" id="analyzeError" role="alert"></p>
+        </div>
+      </section>
+
+      <!-- ========================== TASK LIST ========================== -->
+      <section class="tasks" aria-label="Downloads">
+        <div class="tasks-head">
+          <h2>Downloads</h2>
+          <div class="tasks-tools">
+            <span class="tasks-count" id="activeCount">0 active</span>
+            <button class="btn btn-ghost btn-sm" id="clearFinishedBtn" type="button">Clear finished</button>
+          </div>
+        </div>
+
+        <div class="task-list" id="taskList" aria-live="polite"></div>
+
+        <!-- Shown while there are no tasks -->
+        <div class="empty" id="emptyState">
+          <svg viewBox="0 0 120 96" width="132" height="106" aria-hidden="true">
+            <rect x="6" y="10" width="108" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="3" opacity=".45" />
+            <path d="M60 26v26" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+            <path d="m48 42 12 12 12-12" fill="none" stroke="currentColor" stroke-width="4"
+                  stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M40 66h40" stroke="currentColor" stroke-width="4" stroke-linecap="round" opacity=".6" />
+          </svg>
+          <h3>No downloads yet</h3>
+          <p>Paste a link above and press <strong>Analyze</strong> to pick a quality.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ====================== QUALITY MODAL ====================== -->
+  <div class="overlay hidden" id="qualityOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="qualityHeading">
+      <header class="modal-head">
+        <h2 id="qualityHeading">Choose quality</h2>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Close">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <div class="media-preview">
+          <div class="media-thumb">
+            <img id="qualityThumb" alt="" />
+            <span class="thumb-play" aria-hidden="true">▶</span>
+          </div>
+          <div class="media-meta">
+            <h3 id="qualityTitle">—</h3>
+            <p id="qualityMeta">—</p>
+          </div>
+        </div>
+
+        <!-- Populated for playlists: exactly what "Download" will fetch. -->
+        <div class="playlist-preview hidden" id="playlistPreview" aria-label="Playlist contents"></div>
+
+        <div class="quality-list" id="qualityList" role="radiogroup" aria-label="Available qualities"></div>
+
+        <p class="quality-note hidden" id="qualityNote"></p>
+      </div>
+
+      <footer class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close-modal>Cancel</button>
+        <button class="btn btn-primary" id="startDownloadBtn" type="button">
+          <span class="btn-label">Download</span>
+          <span class="spinner hidden" aria-hidden="true"></span>
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ====================== SETTINGS MODAL ====================== -->
+  <div class="overlay hidden" id="settingsOverlay">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="settingsHeading">
+      <header class="modal-head">
+        <h2 id="settingsHeading">Settings</h2>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Close">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <div class="field">
+          <label for="destPath">Download folder</label>
+          <div class="field-row">
+            <input id="destPath" type="text" readonly aria-describedby="destPathHint" />
+            <button class="btn btn-ghost" id="chooseFolderBtn" type="button">Browse…</button>
+          </div>
+          <p class="field-hint" id="destPathHint">New files are saved here.</p>
+        </div>
+
+        <div class="field">
+          <label for="concurrency">Parallel downloads</label>
+          <div class="field-row">
+            <select id="concurrency">
+              <option value="1">1 — one at a time</option>
+              <option value="2">2 — balanced (default)</option>
+              <option value="3">3 — fast</option>
+              <option value="4">4 — aggressive</option>
+            </select>
+          </div>
+          <p class="field-hint">Extra downloads wait in the queue.</p>
+        </div>
+
+        <div class="field engine-field">
+          <label>Download engine</label>
+          <div class="engine-card">
+            <div class="engine-row">
+              <span class="engine-name">yt-dlp</span>
+              <span class="engine-value" id="ytDlpVersion">—</span>
+            </div>
+            <div class="engine-row">
+              <span class="engine-name">FFmpeg</span>
+              <span class="engine-value" id="ffmpegVersion">—</span>
+            </div>
+            <div class="engine-row">
+              <span class="engine-name">Latest release</span>
+              <span class="engine-value" id="latestVersion">—</span>
+            </div>
+
+            <div class="engine-progress hidden" id="engineProgressWrap">
+              <div class="progress slim"><div class="bar" id="engineProgressBar"></div></div>
+              <span class="engine-progress-label" id="engineProgressLabel">0%</span>
+            </div>
+
+            <div class="engine-actions">
+              <button class="btn btn-ghost btn-sm" id="checkUpdateBtn" type="button">Check for updates</button>
+              <button class="btn btn-primary btn-sm" id="updateNowBtn" type="button">Update yt-dlp</button>
+            </div>
+            <p class="field-hint" id="engineHint">Updates are fetched from the official GitHub Releases.</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Application</label>
+          <p class="field-hint" id="appVersionLine">OmniDownloader</p>
+        </div>
+      </div>
+
+      <footer class="modal-foot">
+        <button class="btn btn-primary" type="button" data-close-modal>Done</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Transient notifications -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

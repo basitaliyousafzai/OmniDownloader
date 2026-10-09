@@ -1,0 +1,6 @@
+# Normalize line endings; keep binary assets untouched
+* text=auto
+
+*.png binary
+*.ico binary
+*.exe binary
